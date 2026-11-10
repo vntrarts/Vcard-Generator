@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111827"><title>TapCard Studio</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;color:#f8fafc;background:#0b1220}*{box-sizing:border-box}body{margin:0}header{padding:22px 18px;border-bottom:1px solid #263246;display:flex;justify-content:space-between;align-items:center}header strong{font-size:22px}header small{color:#94a3b8}main{max-width:1050px;margin:auto;padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:24px}.panel{background:#151f30;border:1px solid #334155;border-radius:18px;padding:22px}h2{margin:0 0 18px}label{display:block;font-size:13px;color:#cbd5e1;margin:12px 0 6px}input,textarea,select{width:100%;border:1px solid #475569;border-radius:9px;background:#0c1422;color:white;padding:12px;font:inherit}textarea{min-height:70px}button,.btn{display:inline-block;background:#38bdf8;color:#06111f;border:0;border-radius:10px;padding:12px 14px;font-weight:750;cursor:pointer;text-decoration:none;margin:6px 5px 4px 0}button.secondary{background:#334155;color:white}.actions{margin-top:16px}.card{background:linear-gradient(145deg,#243b55,#111827);border-radius:18px;padding:28px;min-height:260px;overflow-wrap:anywhere;border-top:6px solid var(--accent,#38bdf8)}.card h1{margin:12px 0 4px;font-size:30px}.muted{color:#aabbd0}.card a{color:#7dd3fc}.notice{font-size:13px;color:#94a3b8;line-height:1.5}.success{color:#86efac}#status{min-height:20px}#customerList{margin-top:12px}#customerList button{font-size:13px;padding:9px}.hidden{display:none!important}@media(max-width:760px){main{grid-template-columns:1fr;padding:12px}.panel{padding:16px}header{padding:16px}}
+</style></head><body>
+<header><div><strong>TapCard Studio</strong><div><small>NFC business card generator</small></div></div><small>VNTR ARTS</small></header>
+<main id="editor"><section class="panel"><h2>Create a card</h2>
+<label for="name">Full name *</label><input id="name" placeholder="Jane Smith" autocomplete="name">
+<label for="company">Business</label><input id="company" placeholder="Smith Studio">
+<label for="title">Job title</label><input id="title" placeholder="Owner">
+<label for="phone">Phone</label><input id="phone" type="tel" placeholder="+1 555 123 4567">
+<label for="email">Email</label><input id="email" type="email" placeholder="jane@example.com">
+<label for="website">Website or social link</label><input id="website" type="url" placeholder="https://example.com">
+<label for="bio">Description</label><textarea id="bio" placeholder="What you do"></textarea>
+<label for="color">Accent color</label><input id="color" type="color" value="#38bdf8">
+<div class="actions"><button id="generate">Generate business card</button><button class="secondary" id="clear">New card</button></div>
+<p id="status" role="status"></p>
+<h2>Saved customers</h2><div id="customerList"></div><p class="notice">Customer profiles are saved only in this browser. Export your cards to back them up.</p></section>
+<section class="panel"><h2>Live preview</h2><div class="card" id="preview"></div>
+<div id="exports" class="hidden"><h2 style="margin-top:24px">Share and export</h2>
+<button id="copyLink">Copy NFC-ready link</button><button id="downloadVcf" class="secondary">Download contact (.vcf)</button><button id="downloadHtml" class="secondary">Download offline card (.html)</button><button id="share" class="secondary">Share link</button>
+<label for="link">Customer card URL — write this as a URL to an NFC tag</label><input id="link" readonly>
+<p class="notice">The link opens this public site and displays the customer's card. The card data is encoded in the URL, not stored on a server. Anyone with the link can read it. A working NFC website link requires internet on the recipient's phone. The downloaded HTML works offline once transferred to their device.</p></div>
+</section></main>
+<section id="publicCard" class="hidden" style="max-width:520px;margin:40px auto;padding:18px"><div class="card" id="publicPreview"></div><div class="actions"><button id="publicVcf">Save contact</button></div><p class="notice">Powered by TapCard Studio</p></section>
+<script>
+'use strict';
+const ids=['name','company','title','phone','email','website','bio','color'];
+const el=id=>document.getElementById(id);
+const read=()=>Object.fromEntries(ids.map(id=>[id,el(id).value.trim()]));
+const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeUrl=s=>{try{const u=new URL(s);return ['http:','https:'].includes(u.protocol)?u.href:''}catch{return ''}};
+const color=s=>/^#[0-9a-f]{6}$/i.test(s||'')?s:'#38bdf8';
+function cardMarkup(d){const website=safeUrl(d.website);return '<div style="font-size:12px;letter-spacing:2px">DIGITAL BUSINESS CARD</div><h1>'+esc(d.name||'Your name')+'</h1><div class="muted">'+esc([d.title,d.company].filter(Boolean).join(' · ')||'Your business')+'</div><p>'+esc(d.bio)+'</p>'+(d.phone?'<p>☎ <a href="tel:'+encodeURIComponent(d.phone)+'">'+esc(d.phone)+'</a></p>':'')+(d.email?'<p>✉ <a href="mailto:'+encodeURIComponent(d.email)+'">'+esc(d.email)+'</a></p>':'')+(website?'<p>↗ <a rel="noopener noreferrer" target="_blank" href="'+esc(website)+'">'+esc(website)+'</a></p>':'')}
+function render(d,target){target.style.setProperty('--accent',color(d.color));target.innerHTML=cardMarkup(d)}
+function encode(d){const bytes=new TextEncoder().encode(JSON.stringify(d));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+function decode(s){const bin=atob(s.replace(/-/g,'+').replace(/_/g,'/'));return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin,c=>c.charCodeAt(0))))}
+function vcf(d){const v=s=>String(s||'').replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/;/g,'\\;').replace(/,/g,'\\,');return ['BEGIN:VCARD','VERSION:3.0','FN:'+v(d.name),'N:;'+v(d.name)+';;;','ORG:'+v(d.company),'TITLE:'+v(d.title),'TEL;TYPE=CELL:'+v(d.phone),'EMAIL:'+v(d.email),'URL:'+v(safeUrl(d.website)),'NOTE:'+v(d.bio),'END:VCARD'].join('\r\n')}
+function download(content,name,type){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type}));a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
+let current=null;
+function makeLink(d){return location.href.split('#')[0]+'#card='+encode(d)}
+function slug(d){return (d.name||'contact').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'contact'}
+function generate(){const d=read();if(!d.name){el('status').textContent='Please enter a name first.';el('name').focus();return}current=d;el('link').value=makeLink(d);el('exports').classList.remove('hidden');el('status').textContent='✓ Card generated! Use the buttons on the right to export or share.';el('status').className='success';try{const all=JSON.parse(localStorage.getItem('tapcard_customers')||'{}');all[d.name]=d;localStorage.setItem('tapcard_customers',JSON.stringify(all));listCustomers()}catch(e){el('status').textContent='Card generated, but browser storage is unavailable. Download a copy.'}}
+function listCustomers(){let all={};try{all=JSON.parse(localStorage.getItem('tapcard_customers')||'{}')}catch{}el('customerList').replaceChildren();Object.keys(all).sort().forEach(name=>{const row=document.createElement('div');const b=document.createElement('button');b.className='secondary';b.textContent='Edit '+name;b.onclick=()=>{ids.forEach(id=>el(id).value=all[name][id]|| (id==='color'?'#38bdf8':''));render(read(),el('preview'));el('exports').classList.add('hidden');el('status').textContent='Loaded '+name};const del=document.createElement('button');del.className='secondary';del.textContent='Delete';del.onclick=()=>{if(confirm('Delete '+name+'?')){delete all[name];localStorage.setItem('tapcard_customers',JSON.stringify(all));listCustomers()}};row.append(b,del);el('customerList').append(row)})}
+ids.forEach(id=>el(id).addEventListener('input',()=>render(read(),el('preview'))));
+el('generate').onclick=generate;
+el('clear').onclick=()=>{ids.forEach(id=>el(id).value=id==='color'?'#38bdf8':'');current=null;el('exports').classList.add('hidden');el('status').textContent='';render(read(),el('preview'))};
+el('copyLink').onclick=async()=>{try{await navigator.clipboard.writeText(el('link').value);el('status').textContent='✓ Link copied'}catch{el('link').focus();el('link').select();el('status').textContent='Select and copy the link above'}};
+el('downloadVcf').onclick=()=>current&&download(vcf(current),slug(current)+'.vcf','text/vcard;charset=utf-8');
+el('downloadHtml').onclick=()=>{if(!current)return;const d=current;const markup='<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(d.name)+'</title><style>body{font-family:system-ui;background:#0b1220;color:white;padding:24px}.card{max-width:500px;margin:30px auto;padding:28px;border-radius:18px;background:#17243a;border-top:6px solid '+color(d.color)+'}a{color:#7dd3fc}</style><div class="card">'+cardMarkup(d)+'</div></html>';download(markup,slug(d)+'.html','text/html;charset=utf-8')};
+el('share').onclick=async()=>{if(!current)return;const url=el('link').value;if(navigator.share){try{await navigator.share({title:current.name+' business card',url})}catch{}}else el('copyLink').click()};
+el('publicVcf').onclick=()=>current&&download(vcf(current),slug(current)+'.vcf','text/vcard;charset=utf-8');
+render(read(),el('preview'));listCustomers();
+if(location.hash.startsWith('#card=')){try{current=decode(location.hash.slice(6));if(!current||!current.name)throw Error('Invalid card');el('editor').classList.add('hidden');el('publicCard').classList.remove('hidden');render(current,el('publicPreview'))}catch{el('status').textContent='Invalid card link.'}}
+</script></body></html>
